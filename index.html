@@ -144,6 +144,66 @@
     flex:1;padding:9px;font-size:12.5px;border-radius:10px;border:1px solid #ddd;
     background:#fafafa;color:#555;
   }
+
+  /* 特定空家等 判定チェックリスト */
+  .tokutei-btn{
+    width:100%;padding:12px;border-radius:12px;border:1.5px dashed var(--accent);
+    background:#f2f8f5;color:var(--accent);font-size:14px;font-weight:600;cursor:pointer;
+    margin-bottom:14px;text-align:left;display:flex;align-items:center;justify-content:space-between;
+  }
+  .tokutei-summary-badge{
+    font-size:11.5px;padding:3px 9px;border-radius:10px;font-weight:600;
+  }
+  .tokutei-summary-badge.none{background:#eee;color:#888;}
+  .tokutei-summary-badge.hit{background:#e53935;color:#fff;}
+  .tokutei-summary-badge.clear{background:#4caf50;color:#fff;}
+
+  #tokuteiOverlay{
+    position:fixed;inset:0;background:#fff;z-index:3000;display:none;flex-direction:column;
+  }
+  #tokuteiOverlay.active{display:flex;}
+  .tk-header{
+    background:var(--accent);color:#fff;padding:12px 14px;display:flex;align-items:center;
+    justify-content:space-between;flex-shrink:0;
+  }
+  .tk-header h2{font-size:15px;margin:0;}
+  .tk-header button{
+    background:rgba(255,255,255,.2);border:none;color:#fff;padding:7px 14px;border-radius:16px;font-size:13px;
+  }
+  .tk-body{flex:1;overflow-y:auto;padding:10px 12px 100px;}
+  .tk-note{
+    background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 12px;
+    font-size:12px;color:#7a5c00;margin-bottom:14px;line-height:1.6;
+  }
+  .tk-category{
+    margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;
+  }
+  .tk-cat-head{
+    background:#f0f0f0;padding:10px 12px;font-weight:700;font-size:13.5px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .tk-cat-result{font-size:11px;padding:2px 8px;border-radius:8px;background:#ddd;color:#666;}
+  .tk-cat-result.hit{background:#e53935;color:#fff;}
+  .tk-group{border-top:1px solid #eee;}
+  .tk-group-head{
+    padding:9px 12px;font-size:12.5px;font-weight:600;color:#444;background:#fafafa;
+    display:flex;align-items:center;justify-content:between;gap:6px;cursor:pointer;
+  }
+  .tk-group-head .chev{margin-left:auto;color:#999;font-size:11px;}
+  .tk-group-body{padding:2px 10px 8px;display:none;}
+  .tk-group-body.open{display:block;}
+  .tk-item{
+    display:flex;align-items:flex-start;gap:8px;padding:8px 2px;border-bottom:1px dashed #eee;font-size:12.8px;
+  }
+  .tk-item:last-child{border-bottom:none;}
+  .tk-item .tk-text{flex:1;line-height:1.5;color:#333;}
+  .tk-item .tk-checks{display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:center;}
+  .tk-item .tk-checks label{font-size:9.5px;color:#999;display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .tk-item input[type=checkbox]{width:19px;height:19px;}
+  .tk-footer{
+    position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #eee;
+    padding:10px 14px;display:flex;gap:10px;
+  }
 </style>
 </head>
 <body>
@@ -258,11 +318,34 @@
       <textarea id="f_notes" placeholder="気になった点など自由に"></textarea>
     </div>
 
+    <button type="button" class="tokutei-btn" id="openTokuteiBtn">
+      <span>📋 特定空家等 判定チェックリスト</span>
+      <span class="tokutei-summary-badge none" id="tokuteiSummaryBadge">未実施</span>
+    </button>
+
     <div class="sheet-actions">
       <button class="btn btn-ghost" id="cancelBtn">キャンセル</button>
       <button class="btn btn-danger" id="deleteBtn" style="display:none;">削除</button>
       <button class="btn btn-primary" id="saveBtn">保存</button>
     </div>
+  </div>
+</div>
+
+<div id="tokuteiOverlay">
+  <div class="tk-header">
+    <h2>特定空家等 判定チェックリスト</h2>
+    <button id="tokuteiCloseX">閉じる</button>
+  </div>
+  <div class="tk-body">
+    <div class="tk-note">
+      国交省ガイドライン（埼玉県空き家対策連絡会議「特定空家等判定方法マニュアル」）に基づく参考チェックリストです。①該当する項目にチェック→②周辺への影響・危険の切迫性がある項目にもチェックが入ると、その区分が「特定空家等相当」と判定されます（別紙３(1)のみ①のみで判定）。<br>
+      <strong>これはあくまで参考判定です。実際の特定空家等の認定は市町村が行います。</strong>
+    </div>
+    <div id="tokuteiCategories"></div>
+  </div>
+  <div class="tk-footer">
+    <button class="btn btn-ghost" id="tokuteiCancelBtn" style="flex:1;">キャンセル</button>
+    <button class="btn btn-primary" id="tokuteiApplyBtn" style="flex:2;">この内容を反映する</button>
   </div>
 </div>
 
@@ -369,6 +452,10 @@ function openSheet(latlng, record){
   else { preview.style.backgroundImage = ''; preview.textContent = '📷'; }
 
   document.getElementById('deleteBtn').style.display = record ? 'block' : 'none';
+
+  pendingTokutei = record ? (record.tokutei || null) : null;
+  updateTokuteiBadge();
+
   document.getElementById('sheetOverlay').classList.add('active');
 }
 function closeSheet(){
@@ -396,6 +483,7 @@ document.getElementById('saveBtn').addEventListener('click', ()=>{
     photo: photoDataUrl,
     date: document.getElementById('f_date').value,
     notes: document.getElementById('f_notes').value,
+    tokutei: pendingTokutei,
   };
   if(editingId){
     const idx = records.findIndex(r=>r.id===editingId);
@@ -453,11 +541,12 @@ function renderList(){
   el.innerHTML = records.slice().reverse().map(r=>{
     const thumb = r.photo ? `style="background-image:url(${r.photo})"` : '';
     const rankChip = r.rank ? `<span class="rankchip" style="background:${ {A:'#4caf50',B:'#ffc107',C:'#ff9800',D:'#e53935'}[r.rank] }">${r.rank}: ${rankLabel[r.rank]}</span>` : '';
+    const tokuteiChip = (r.tokutei && r.tokutei.overall) ? `<span class="rankchip" style="background:#b71c1c;">⚠特定空家相当</span>` : '';
     return `<div class="record" data-id="${r.id}">
       <div class="thumb" ${thumb}>${r.photo?'':'🏚'}</div>
       <div class="info">
         <div class="addr">${r.address || '（住所未入力）'}</div>
-        <div class="meta">${rankChip}${r.type||''} ${r.date?('・'+r.date):''}</div>
+        <div class="meta">${rankChip}${tokuteiChip}${r.type||''} ${r.date?('・'+r.date):''}</div>
       </div>
     </div>`;
   }).join('');
@@ -471,8 +560,13 @@ function renderList(){
 
 document.getElementById('exportBtn').addEventListener('click', ()=>{
   if(records.length===0){ alert('出力する記録がありません'); return; }
-  const headers = ['id','緯度','経度','住所','建物用途','ランク','管理状況','空き家期間','特定空家可能性','調査日','備考'];
-  const rows = records.map(r=>[r.id,r.lat,r.lng,r.address,r.type,r.rank,r.mgmt,r.period,r.special,r.date,r.notes]);
+  const headers = ['id','緯度','経度','住所','建物用途','ランク','管理状況','空き家期間','特定空家可能性（自己申告）','特定空家等チェックリスト判定','該当区分','調査日','備考'];
+  const rows = records.map(r=>{
+    const tk = r.tokutei;
+    const tkResult = tk ? (tk.overall ? '相当あり' : '非該当') : '未実施';
+    const tkCats = (tk && tk.overall) ? TOKUTEI_DATA.filter(c=>tk.catResults && tk.catResults[c.key]).map(c=>c.label).join('／') : '';
+    return [r.id,r.lat,r.lng,r.address,r.type,r.rank,r.mgmt,r.period,r.special,tkResult,tkCats,r.date,r.notes];
+  });
   const csv = [headers, ...rows].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
@@ -490,6 +584,257 @@ document.getElementById('clearBtn').addEventListener('click', ()=>{
   renderMarkers();
   renderList();
 });
+
+/* ============ 特定空家等 判定チェックリスト ============
+   出典：埼玉県空き家対策連絡会議「特定空家等判定方法マニュアル」
+   （国土交通省ガイドライン別紙１〜４に基づく）を参考に作成 */
+const TOKUTEI_DATA = [
+  { key:'betsushi1', label:'別紙１　保安上危険（倒壊等）', groups:[
+    { label:'建築物の著しい傾斜', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '建築物の崩壊、落階、上階とのずれが目視で確認できる。',
+      '基礎が不同沈下または建築物の傾斜が目視で確認できる。',
+      '木造建築物について、1/20超の傾斜が確認できる。2階以上の階が傾斜している場合も同様である。',
+      '鉄骨造建築物について、1/30超の傾斜（傾斜を生じた階の上の階数が1階以下の場合）が確認できる。',
+      '鉄骨造建築物について、1/50超の傾斜（傾斜を生じた階の上の階数が2階以上の場合）が確認できる。',
+    ]},
+    { label:'基礎及び土台', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '基礎の大きな亀裂や多数のひび割れ、破損または変形が目視で確認できる。',
+      '土台の腐朽、破損、変形または蟻害が目視で確認できる。',
+      '基礎と土台のずれが目視で確認できる。',
+      '直接地面に接する土台または掘立柱等の腐朽、破損または蟻害が目視で確認できる。',
+      '基礎と土台の緊結金物の腐食、脱落が目視で確認できる。',
+    ]},
+    { label:'柱、はり、筋かい、柱とはりの接合等', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '柱、はり、筋かいに大きな亀裂や多数のひび割れ、腐朽、破損、変形または蟻害が目視で確認できる。',
+      '柱とはりのずれまたは脱落が目視で確認できる。',
+      '柱とはりの接合部の腐食、脱落が目視で確認できる。',
+    ]},
+    { label:'屋根ふき材、ひさし又は軒', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '屋根の落ち込みや浮き上がりなどの変形、破損などが目視で確認できる。',
+      '屋根ふき材（瓦やトタンなど）が剥落又は飛散のおそれがある。',
+      '軒の裏板、たる木等の腐朽や破損が目視で確認できる。',
+      '雨樋が垂れ下がっている又は雨樋の著しい変形や留め具の痛みにより脱落や飛散のおそれがある。',
+      'ひさしの腐朽、破損や剥落が目視で確認できる。',
+      '軒が垂れ下がっている。',
+      'その他著しく保安上危険となるおそれがある。',
+    ]},
+    { label:'外壁', factor2:'第三者の侵入・火災、または落下により通行人等へ被害が及ぶ危険性', items:[
+      '壁体を貫通する穴が生じている。',
+      '外壁の仕上げ材料が剥落、腐朽、破損している。又は腐朽、破損等により剥落・飛散などのおそれがある。',
+      '外壁の剥落、腐朽、破損により下地が露出している。',
+      '外壁のモルタルやタイル等の外装材に浮き上がりが目視で確認できる。',
+      '外壁に大きなひび等があり、外壁の脱落等の危険性が目視で確認できる。',
+      '窓や戸袋などが傷みや破損等により落下のおそれがある。',
+      'その他著しく保安上危険となるおそれがある。',
+    ]},
+    { label:'看板、給湯設備、屋上水槽等', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '看板の仕上げ材料が剥落している。',
+      '看板、給湯設備、屋上水槽等が破損や転倒、脱落している。',
+      '看板、給湯設備、屋上水槽等の支持部分が腐食や破損していることが目視で確認できる。',
+      'その他アンテナ、煙突、空調設備、配管など屋根や外壁等にある建物の付属物が転倒、破損などにより落下や飛散のおそれがある。',
+      'その他著しく保安上危険となるおそれがある。',
+    ]},
+    { label:'屋外階段又はバルコニー', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '屋外階段、バルコニーが腐食、破損又は脱落している。',
+      '屋外階段、バルコニーの傾斜が目視で確認できる。',
+      '屋外階段、バルコニーに歩行上支障があるひび割れ、錆、腐食等がある。',
+      '屋外階段、バルコニーの手すりや格子にぐらつき、傾きがある。',
+      '屋外階段、バルコニーのブラケットのはずれ、取付けビスのゆるみやはずれがある。',
+    ]},
+    { label:'門又は塀', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '門又は塀にひび割れ、破損が生じている。',
+      '門又は塀の傾斜が目視で確認できる。',
+      '門扉、門柱及び支柱に錆、変形、ぐらつき等がある。',
+      '塀にぐらつき等がある。',
+      'コンクリート、ブロック等の塀に著しい亀裂等の劣化、損傷等がある。',
+      '塀と控え柱・壁の接続部に著しい亀裂等がある。又は離れている。',
+      '塀の金属フェンス等に変形、破損、さび、腐食、ゆるみ等がある。',
+      '基礎部が陥没する等、塀基礎部と周辺地盤との間に相対的な著しい沈下又は隆起がある。',
+      '塀の基礎部に著しい亀裂等がある。',
+    ]},
+    { label:'擁壁', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '擁壁表面に水がしみ出し、流出している。',
+      '水抜き穴の詰まりが生じている。',
+      'ひび割れが発生している。',
+      '「宅地擁壁老朽化判定マニュアル（案）」に基づく危険度評価区分が大（または区分が小でも著しく危険な状態）である。',
+    ]},
+  ]},
+  { key:'betsushi2', label:'別紙２　衛生上有害', groups:[
+    { label:'建築物又は設備等の破損等', factor2:'吹付け石綿等の飛散暴露、または地域住民の日常生活への支障', items:[
+      '耐火建築物の梁や階段・駐車場などに吹付け石綿等が使用されており飛散し暴露するおそれがある。',
+      '住宅の屋根材・壁材・間仕切り材・床材・天井材などにアスベスト含有成型板が使用されており、老朽化などにより破損しているため飛散するおそれがある。',
+      '浄化槽等の放置、破損等による汚物の流出、臭気の発生がある。',
+      '放置された物品などが雨水・排水等により流出し、臭気の発生がある。',
+    ]},
+    { label:'ごみ等の放置、不法投棄', factor2:'地域住民の日常生活への支障', items:[
+      'ごみ等の放置、不法投棄による臭気の発生がある。',
+      'ごみ等の放置、不法投棄により、多数のねずみ、はえ、蚊等が発生している。',
+    ]},
+  ]},
+  { key:'betsushi3', label:'別紙３　景観を損なう', groups:[
+    { label:'既存の景観ルールへの著しい不適合', judgeType:'one', items:[
+      '景観法に基づく景観計画（または景観地区）に定める建築物・工作物の形態意匠等の制限に著しく適合しない状態となっている。',
+      '景観法に基づき都市計画に景観地区を定めている場合、条例で定める工作物の形態意匠等の制限等に著しく適合しない状態となっている。',
+      '地域で定められた景観保全に係るルール（景観協定等）に著しく適合しない状態となっている。',
+    ]},
+    { label:'その他、周囲の景観と著しく不調和', factor2:'地域住民の日常生活への支障', items:[
+      '屋根や外壁等が汚物や落書き等で外見上大きく傷んだり汚れたまま放置されている。',
+      '多数のガラスが割れたまま放置されている。',
+      '看板等が原型をとどめず、本来の用をなさない程度まで破損、汚損したまま放置されている。',
+      '立木等が建築物の全面を覆う程度まで繁茂している。',
+      '敷地内にごみ等が散乱、山積したまま放置されている。',
+    ]},
+  ]},
+  { key:'betsushi4', label:'別紙４　その他周辺の生活環境の保全', groups:[
+    { label:'立木が原因', factor2:'地域住民の日常生活への支障', items:[
+      '立木の枝等が近隣の家屋の敷地に越境している。',
+      '立木の枝等が近隣の道路等にはみ出し、歩行者や車両の通行を妨げている。',
+      '立木が枯損等により隣地や道路に倒伏するおそれがある。',
+      '立木の折れた枝等が道や近隣等に飛散し、生活環境が悪化している。',
+    ]},
+    { label:'住みついた動物等が原因', factor2:'地域住民の日常生活への支障', items:[
+      '動物等の鳴き声等の騒音が頻繁にある。',
+      '動物等のふん尿や汚物等による臭害がある。',
+      '敷地外への動物等の毛や羽毛などの飛散がある。',
+      '大量の害虫等が発生している。',
+      '住み着いた動物等が隣家（隣地）周辺に侵入している。',
+      'シロアリが大量に発生し、近隣に飛来している。',
+    ]},
+    { label:'建築物等の不適切な管理等が原因', factor2:'通行人や近隣住民へ被害が及ぶ可能性', items:[
+      '門扉の開放や窓ガラスの破損が見られるなど、不特定者が容易に侵入できる状態で放置されている。',
+      '雪止めの不適切な管理により、屋根からの落雪による通行支障のおそれがある。',
+      '周辺の道路や家屋の敷地等に土砂等が大量に流出している。',
+    ]},
+  ]},
+];
+
+let pendingTokutei = null; // { answers: {"catIdx_groupIdx_itemIdx": {a:bool,b:bool}} }
+let tokuteiOpenGroups = new Set(); // 開いているアコーディオンの記憶（表示中のみ）
+
+function tk_key(ci,gi,ii){ return ci+'_'+gi+'_'+ii; }
+
+function computeTokuteiResults(answers){
+  const catResults = {};
+  let overallHit = false;
+  TOKUTEI_DATA.forEach((cat, ci)=>{
+    let catHit = false;
+    cat.groups.forEach((g, gi)=>{
+      const needsTwo = g.judgeType !== 'one';
+      let groupHit = false;
+      g.items.forEach((_, ii)=>{
+        const a = answers[tk_key(ci,gi,ii)];
+        if(!a) return;
+        if(needsTwo ? (a.a && a.b) : a.a) groupHit = true;
+      });
+      if(groupHit) catHit = true;
+    });
+    catResults[cat.key] = catHit;
+    if(catHit) overallHit = true;
+  });
+  return { catResults, overall: overallHit };
+}
+
+function renderTokuteiCategories(answers){
+  const wrap = document.getElementById('tokuteiCategories');
+  const results = computeTokuteiResults(answers);
+  wrap.innerHTML = TOKUTEI_DATA.map((cat, ci)=>{
+    const hit = results.catResults[cat.key];
+    const groupsHtml = cat.groups.map((g, gi)=>{
+      const needsTwo = g.judgeType !== 'one';
+      const itemsHtml = g.items.map((text, ii)=>{
+        const k = tk_key(ci,gi,ii);
+        const a = answers[k] || {a:false,b:false};
+        return `<div class="tk-item">
+          <div class="tk-text">${text}</div>
+          <div class="tk-checks">
+            <label>①<input type="checkbox" data-k="${k}" data-f="a" data-ci="${ci}" ${a.a?'checked':''}></label>
+            ${needsTwo ? `<label>②<input type="checkbox" data-k="${k}" data-f="b" data-ci="${ci}" ${a.b?'checked':''}></label>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+      const openCls = tokuteiOpenGroups.has(ci+'_'+gi) ? 'open' : '';
+      return `<div class="tk-group">
+        <div class="tk-group-head" data-toggle="${ci}_${gi}">
+          <span>${g.label}${g.factor2 ? `<br><span style="font-weight:400;color:#999;">②基準：${g.factor2}</span>`:''}</span>
+          <span class="chev">${openCls==='open'?'▲':'▼'}</span>
+        </div>
+        <div class="tk-group-body ${openCls}" id="tkgroup_${ci}_${gi}">${itemsHtml}</div>
+      </div>`;
+    }).join('');
+    return `<div class="tk-category" data-cat="${ci}">
+      <div class="tk-cat-head"><span>${cat.label}</span><span class="tk-cat-result ${hit?'hit':''}" id="tkcatresult_${ci}">${hit?'特定空家等相当':'非該当'}</span></div>
+      ${groupsHtml}
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.tk-group-head').forEach(h=>{
+    h.addEventListener('click', ()=>{
+      const gkey = h.dataset.toggle;
+      const body = document.getElementById('tkgroup_'+gkey);
+      const chev = h.querySelector('.chev');
+      const nowOpen = body.classList.toggle('open');
+      chev.textContent = nowOpen ? '▲' : '▼';
+      if(nowOpen) tokuteiOpenGroups.add(gkey); else tokuteiOpenGroups.delete(gkey);
+    });
+  });
+  wrap.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('click', (e)=> e.stopPropagation());
+    cb.addEventListener('change', ()=>{
+      // 全体を再描画せず、該当カテゴリの判定バッジだけ更新する（チェック連打時の取りこぼし防止）
+      const answers = collectTokuteiAnswers();
+      const results2 = computeTokuteiResults(answers);
+      TOKUTEI_DATA.forEach((cat, ci)=>{
+        const badge = document.getElementById('tkcatresult_'+ci);
+        if(!badge) return;
+        const hit = results2.catResults[cat.key];
+        badge.textContent = hit ? '特定空家等相当' : '非該当';
+        badge.classList.toggle('hit', hit);
+      });
+    });
+  });
+}
+
+function collectTokuteiAnswers(){
+  const answers = {};
+  document.querySelectorAll('#tokuteiCategories input[type=checkbox]').forEach(cb=>{
+    const k = cb.dataset.k, f = cb.dataset.f;
+    if(!answers[k]) answers[k] = {a:false,b:false};
+    answers[k][f] = cb.checked;
+  });
+  return answers;
+}
+
+function updateTokuteiBadge(){
+  const badge = document.getElementById('tokuteiSummaryBadge');
+  if(!pendingTokutei || !pendingTokutei.answers || Object.keys(pendingTokutei.answers).length===0){
+    badge.textContent = '未実施'; badge.className = 'tokutei-summary-badge none';
+    return;
+  }
+  const results = computeTokuteiResults(pendingTokutei.answers);
+  if(results.overall){
+    const hitCats = TOKUTEI_DATA.filter(c=>results.catResults[c.key]).map(c=>c.label.split('　')[0]).join('・');
+    badge.textContent = '相当あり：' + hitCats; badge.className = 'tokutei-summary-badge hit';
+  } else {
+    badge.textContent = '非該当'; badge.className = 'tokutei-summary-badge clear';
+  }
+}
+
+document.getElementById('openTokuteiBtn').addEventListener('click', ()=>{
+  tokuteiOpenGroups = new Set();
+  renderTokuteiCategories((pendingTokutei && pendingTokutei.answers) || {});
+  document.getElementById('tokuteiOverlay').classList.add('active');
+});
+function closeTokutei(){ document.getElementById('tokuteiOverlay').classList.remove('active'); }
+document.getElementById('tokuteiCloseX').addEventListener('click', closeTokutei);
+document.getElementById('tokuteiCancelBtn').addEventListener('click', closeTokutei);
+document.getElementById('tokuteiApplyBtn').addEventListener('click', ()=>{
+  const answers = collectTokuteiAnswers();
+  const results = computeTokuteiResults(answers);
+  pendingTokutei = { answers, catResults: results.catResults, overall: results.overall };
+  updateTokuteiBadge();
+  closeTokutei();
+});
+/* ============ /特定空家等 判定チェックリスト ============ */
 
 initMap();
 renderList();
